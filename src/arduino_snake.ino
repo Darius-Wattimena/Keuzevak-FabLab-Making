@@ -1,22 +1,20 @@
 #include <Adafruit_NeoPixel.h>
 #include <avr/power.h>
+#include "Snake.h"
 
 #define PIN            6      //Matrix data pin
 #define NUMPIXELS      256
 
-const int buttonUpPin = 5;
-const int buttonRightPin = 4;
-const int buttonDownPin = 3;
-const int buttonLeftPin = 2;
-const int buttonStartPin = 10;
+#define buttonStartPin 10
 
 int directionButtonState = 0;
 int startButtonState = 0;
 
 Adafruit_NeoPixel matrix = Adafruit_NeoPixel(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
 
+Snake snake(5, 4, 3, 2);
 // Elke pixel locatie
-byte pixelLocationMap[16][16] = {
+int pixelLocationMap[16][16] = {
   {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
   {31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16},
   {32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47},
@@ -35,42 +33,7 @@ byte pixelLocationMap[16][16] = {
   {255, 254, 253, 252, 251, 250, 249, 248, 247, 246, 245, 244, 243, 242, 241, 240}
 };
 
-int maxSnakeSize = 10;
-
-int snakeLocation[10][2] = {
-  { -1, -1},
-  { -1, -1},
-  { -1, -1},
-  { -1, -1},
-  { -1, -1},
-  { -1, -1},
-  { -1, -1},
-  { -1, -1},
-  { -1, -1},
-  { -1, -1}
-};
-
-int snakeOldTailX;
-int snakeOldTailY;
-
-int fruitLocation[3][2] = {
-  { -1, -1},
-  { -1, -1},
-  { -1, -1}
-};
-
-int fruitSpawnTick = 0;
-int maxFruitSpawned = 3;
-int hitFruitIndex = 0;
-int newFruitX = 0;
-int newFruitY = 0;
-
-int snakeDirection;
-int score = 0;
-
 int tickDelay = 1000;
-
-bool snakeRunning = false;
 
 void setup() {
   matrix.begin();
@@ -79,293 +42,37 @@ void setup() {
   Serial.begin(9600);
   startScreenSetup();
 
-  pinMode(buttonUpPin, INPUT);
-  pinMode(buttonRightPin, INPUT);
-  pinMode(buttonDownPin, INPUT);
-  pinMode(buttonLeftPin, INPUT);
   pinMode(buttonStartPin, INPUT);
+  
+  snake.setup();
 }
 
 void loop() {
-  if (snakeRunning) {
-    snakeLoop();
+  if (snake.running) {
+    snake.loop();
+    snake.display(matrix, pixelLocationMap);
   }
   else {
     startScreenLoop();
+    matrix.show();
   }
-
-  matrix.show();
   delay(tickDelay);
 }
-
-
 
 void startScreenLoop() {
   startButtonState = digitalRead(buttonStartPin);
 
   if (startButtonState == HIGH) {
-    snakeRunning = true;
-    snakeSetup();
+    snake.setup();
+    snake.start();
   }
-}
-
-void snakeSetup() {
-  matrix.clear();
-  
-  score = 0;
-  snakeLocation[0][0] = 7;
-  snakeLocation[0][1] = 8;
-
-  snakeLocation[1][0] = 7;
-  snakeLocation[1][1] = 7;
-
-  snakeLocation[2][0] = 7;
-  snakeLocation[2][1] = 6;
-
-  snakeLocation[3][0] = 7;
-  snakeLocation[3][1] = 5;
-
-  snakeLocation[4][0] = -1;
-  snakeLocation[4][1] = -1;
-
-  snakeLocation[5][0] = -1;
-  snakeLocation[5][1] = -1;
-
-  snakeLocation[6][0] = -1;
-  snakeLocation[6][1] = -1;
-
-  snakeLocation[7][0] = -1;
-  snakeLocation[7][1] = -1;
-
-  snakeLocation[8][0] = -1;
-  snakeLocation[8][1] = -1;
-
-  snakeLocation[9][0] = -1;
-  snakeLocation[9][1] = -1;
-
-  snakeDirection = 2;
-}
-
-void snakeLoop() {
-  //Maak de matrix leeg zodat we de nieuwe posities kunnen laten zien
-  matrix.clear();
-
-  snakeButtonRead();
-
-  int currentSnakeHeadY = snakeLocation[0][0];
-  int currentSnakeHeadX = snakeLocation[0][1];
-
-  int newSnakeHeadY = currentSnakeHeadY;
-  int newSnakeHeadX = currentSnakeHeadX;
-  bool hittingWall = true;
-  bool hittingFruit = false;
-
-  //Bepaal de nieuwe locatie van de slang doormiddel van snakeDirection
-  switch (snakeDirection) {
-    case 1:
-      //Hij gaat naar boven
-      if (newSnakeHeadY != 0) {
-        newSnakeHeadY -= 1;
-        hittingWall = false;
-      }
-      break;
-    case 2:
-      //Hij gaat naar rechts
-      if (newSnakeHeadX != 15) {
-        newSnakeHeadX += 1;
-        hittingWall = false;
-      }
-      break;
-    case 3:
-      //Hij gaat naar beneden
-      if (newSnakeHeadY != 15) {
-        newSnakeHeadY += 1;
-        hittingWall = false;
-      }
-      break;
-    case 4:
-      //Hij gaat naar links
-      if (newSnakeHeadX != 0) {
-        newSnakeHeadX -= 1;
-        hittingWall = false;
-      }
-      break;
-  }
-
-  if (hittingWall) {
-    onWallHit();
-    return;
-  }
-
-  //Zet de locatie van de slang in de array
-  if (newSnakeHeadY != currentSnakeHeadY || newSnakeHeadX != currentSnakeHeadX) {
-    int newY = newSnakeHeadY;
-    int newX = newSnakeHeadX;
-    for (int i = 0; i < maxSnakeSize; i++) {
-      //Vind de current location
-      int currentY = snakeLocation[i][0];
-      int currentX = snakeLocation[i][1];
-
-      if (currentY == -1) {
-        snakeOldTailX = newX;
-        snakeOldTailY = newY;
-        break;
-      }
-
-      //Zet de nieuwe locatie
-      snakeLocation[i][0] = newY;
-      snakeLocation[i][1] = newX;
-
-      //Zet de new location voor de volgende item in de array
-      newY = currentY;
-      newX = currentX;
-    }
-  }
-  bool hitFruit = isFruitHere(newSnakeHeadX, newSnakeHeadY);
-  Serial.println(hitFruit);
-  hittingFruit = hitFruit;
-
-  if (hittingFruit) {
-    onEatFruit();
-  }
-
-  //Kijk of we een nieuwe fruit moeten aanmaken
-  if (fruitSpawnTick == 0) {
-    onFruitSpawn();
-    fruitSpawnTick = random(2, 3);
-  }
-
-  fruitSpawnTick --;
-
-  //Zet de locatie van de slang op de matrix
-  for (int i = 0; i < maxSnakeSize; i++) {
-    if (snakeLocation[i][0] != -1) {
-      int snakePixelY = snakeLocation[i][0];
-      int snakePixelX = snakeLocation[i][1];
-      int snakePixel = pixelLocationMap[snakePixelY][snakePixelX];
-      matrix.setPixelColor(snakePixel, 0, 10, 0);
-    }
-  }
-
-  for (int i = 0; i < maxFruitSpawned; i++) {
-    if (fruitLocation[i][0] != -1) {
-      int fruitPixelY = fruitLocation[i][0];
-      int fruitPixelX = fruitLocation[i][1];
-      int fruitPixel = pixelLocationMap[fruitPixelY][fruitPixelX];
-      matrix.setPixelColor(fruitPixel, 10, 0, 0);
-    }
-  }
-}
-
-void snakeButtonRead() {
-  directionButtonState = digitalRead(buttonUpPin);
-
-  if (directionButtonState == HIGH && snakeDirection != 3) {
-    snakeDirection = 1;
-    return;
-  }
-
-  directionButtonState = digitalRead(buttonRightPin);
-
-  if (directionButtonState == HIGH && snakeDirection != 4) {
-    snakeDirection = 2;
-    return;
-  }
-
-  directionButtonState = digitalRead(buttonDownPin);
-
-  if (directionButtonState == HIGH && snakeDirection != 1) {
-    snakeDirection = 3;
-    return;
-  }
-
-  directionButtonState = digitalRead(buttonLeftPin);
-
-  if (directionButtonState == HIGH && snakeDirection != 2) {
-    snakeDirection = 4;
-  }
-}
-
-bool isSnakeHere(int x, int y) {
-  for (int i = 0; i < maxSnakeSize; i++) {
-    if (snakeLocation[i][0] == y && snakeLocation[i][1] == x) {
-      return true;
-    }
-  }
-  return false;
-}
-
-bool isFruitHere(int x, int y) {
-  for (int i = 0; i < maxFruitSpawned; i++) {
-    if (fruitLocation[i][0] == y && fruitLocation[i][1] == x) {
-      hitFruitIndex = i;
-      return true;
-    }
-  }
-  return false;
-}
-
-void getEmptyFruitLocation() {
-  newFruitX = random(0, 16);
-  newFruitY = random(0, 16);
-
-  if (isSnakeHere(newFruitX, newFruitY) || isFruitHere(newFruitX, newFruitY)) {
-    getEmptyFruitLocation();
-  }
-}
-
-void onFruitSpawn() {
-  if (fruitLocation[0][0] != -1 && fruitLocation[1][0] != -1 && fruitLocation[2][0] != -1) {
-    return;
-  }
-
-  Serial.println("Spawning new fruit");
-  getEmptyFruitLocation();
-
-  if (fruitLocation[0][0] == -1) {
-    fruitLocation[0][0] = newFruitY;
-    fruitLocation[0][1] = newFruitX;
-  }
-  else if (fruitLocation[1][0] == -1) {
-    fruitLocation[1][0] = newFruitY;
-    fruitLocation[1][1] = newFruitX;
-  }
-  else if (fruitLocation[2][0] == -1) {
-    fruitLocation[2][0] = newFruitY;
-    fruitLocation[2][1] = newFruitX;
-  }
-}
-
-void onEatFruit() {
-  score++;
-
-  fruitLocation[hitFruitIndex][0] = -1;
-  fruitLocation[hitFruitIndex][1] = -1;
-
-  for (int i = 0; i < maxSnakeSize; i++) {
-    //Vind de current location
-    int currentY = snakeLocation[i][0];
-    int currentX = snakeLocation[i][1];
-
-    if (currentY == -1) {
-      snakeLocation[i][0] = snakeOldTailY;
-      snakeLocation[i][1] = snakeOldTailX;
-      break;
-    }
-  }
-}
-
-void onWallHit() {
-  //TODO
-  startScreenSetup();
 }
 
 void startScreenSetup() {
   matrix.clear();
 
   Serial.println("Current score");
-  Serial.println(score);
-  snakeRunning = false;
+  Serial.println(snake.finalScore);
 
   //Laat een snake zien op het start scherm
   matrix.setPixelColor(pixelLocationMap[0][7], 0, 10, 0);
