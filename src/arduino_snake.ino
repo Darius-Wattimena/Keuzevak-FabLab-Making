@@ -2,17 +2,17 @@
 #include <avr/power.h>
 #include "Snake.h"
 
-#define PIN            6      //Matrix data pin
+#define PIN            13      //Matrix data pin
 #define NUMPIXELS      256
 
-#define buttonStartPin 10
+#define buttonStartPin 2
 
 int directionButtonState = 0;
 int startButtonState = 0;
 
 Adafruit_NeoPixel matrix = Adafruit_NeoPixel(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
 
-Snake snake(5, 4, 3, 2);
+Snake snake(12, 11, 10, 9);
 // Elke pixel locatie
 int pixelLocationMap[16][16] = {
   {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
@@ -37,42 +37,36 @@ int tickDelay = 1000;
 
 void setup() {
   matrix.begin();
-  matrix.show();
-
   Serial.begin(9600);
   startScreenSetup();
 
   pinMode(buttonStartPin, INPUT);
-  
+
   snake.setup();
 }
 
 void loop() {
-  if (snake.running) {
+  while (snake.running) {
     snake.loop();
     snake.display(matrix, pixelLocationMap);
   }
-  else {
-    startScreenLoop();
-    matrix.show();
-  }
+
+  matrix.clear();
+
+  startScreenSetup();
+  startScreenLoop();
+  matrix.show();
   delay(tickDelay);
 }
 
 void startScreenLoop() {
   startButtonState = digitalRead(buttonStartPin);
-
   if (startButtonState == HIGH) {
-    snake.setup();
     snake.start();
   }
 }
 
 void startScreenSetup() {
-  matrix.clear();
-
-  Serial.println("Current score");
-  Serial.println(snake.finalScore);
 
   //Laat een snake zien op het start scherm
   matrix.setPixelColor(pixelLocationMap[0][7], 0, 10, 0);

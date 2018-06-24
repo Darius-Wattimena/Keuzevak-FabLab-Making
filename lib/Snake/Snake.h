@@ -14,6 +14,7 @@ class Snake {
     int score;
     int finalScore;
     bool running;
+    int gameState;
     int upPin;
     int rightPin;
     int downPin;
@@ -22,10 +23,13 @@ class Snake {
     void readButtons();
     void setSnakeStartPosition();
     bool moveSnake();
-    int isSnakeHere(int x, int y);
+    void setSnakeLocation();
+    void growSnake();
+    int isSnakeHere(int x, int y, bool ignoreFirst);
     int isFruitHere(int x, int y);
     void onGameover();
     void onFruitHit();
+    void resetFruitArray();
     void spawnFruit();
     void getEmptyFruitLocation();
     int _snakeOldTailX;
@@ -40,6 +44,9 @@ class Snake {
     int _newFruitY;
     int _direction;
     int _directionButtonState;
+    int _gameDelay;
+    int _gameMinDelay;
+    int _gameDelayDecrease;
 };
 
 #endif
